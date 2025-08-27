@@ -8,7 +8,71 @@ Qlib is an open-source, AI-oriented quantitative investment platform that aims t
 
 ## Development Setup and Common Commands
 
-### Prerequisites and Installation
+### Docker Development Environment (Recommended)
+
+**Quick Start:**
+```bash
+# Start the complete development environment
+./docker-dev-scripts/start-dev.sh
+
+# Connect to development container
+docker exec -it qlib-dev bash
+
+# Access services:
+# - Jupyter Lab: http://localhost:8890
+# - MLflow UI: http://localhost:5002
+```
+
+**Container Management:**
+```bash
+# Start specific services
+docker-compose up -d qlib-dev              # Main development environment
+docker-compose --profile jupyter-only up   # Jupyter Lab only (port 8889)
+docker-compose --profile mlflow-only up    # MLflow UI only (port 5004)
+
+# Stop environment
+./docker-dev-scripts/stop-dev.sh
+# or
+docker-compose down
+
+# View logs
+docker-compose logs -f qlib-dev
+
+# Rebuild containers
+docker-compose build --no-cache qlib-dev
+```
+
+**Data Management:**
+```bash
+# Download data if needed
+./docker-dev-scripts/download-data.sh
+
+# The container automatically mounts your existing ~/.qlib data directory
+# No data re-download needed if you already have data
+```
+
+**Development Workflow Inside Container:**
+```bash
+# Connect to container
+docker exec -it qlib-dev bash
+
+# Navigate to workspace
+cd /workspace/qlib
+
+# Run experiments
+cd examples
+qrun benchmarks/LightGBM/workflow_config_lightgbm_Alpha158.yaml
+
+# Run with your IB data
+qrun highfreq/workflow_config_IB_High_Freq_5min_Alpha158.yaml
+
+# Development commands work normally
+make lint
+pytest tests/
+python your_custom_script.py
+```
+
+### Native Installation (Alternative)
 ```bash
 # Install prerequisite dependencies and compile Cython extensions
 make prerequisite
@@ -62,13 +126,41 @@ python scripts/dump_bin.py dump_all
 ```
 
 ### Running Workflows
+
+**Standard Benchmarks:**
 ```bash
 # Run complete quant research workflow using qrun
 cd examples
 qrun benchmarks/LightGBM/workflow_config_lightgbm_Alpha158.yaml
 
+# Try different models (25+ available)
+qrun benchmarks/XGBoost/workflow_config_xgboost_Alpha158.yaml
+qrun benchmarks/Transformer/workflow_config_transformer_Alpha158.yaml
+qrun benchmarks/DoubleEnsemble/workflow_config_doubleensemble_Alpha158.yaml
+
 # Run workflow in debug mode
 python -m pdb qlib/workflow/cli.py examples/benchmarks/LightGBM/workflow_config_lightgbm_Alpha158.yaml
+```
+
+**High-Frequency Trading (IB Data):**
+```bash
+# Run high-frequency strategy with your IB data
+cd examples  
+qrun highfreq/workflow_config_IB_High_Freq_5min_Alpha158.yaml
+
+# Test IB data format and availability
+python -m pytest tests/data_mid_layer_tests/test_ib_data_format.py -v
+```
+
+**Interactive Brokers Data Conversion:**
+```bash
+# Convert IB CSV data to Qlib binary format
+python scripts/dump_bin_ib.py dump_all \
+  --csv_path /path/to/ib/csv/files \
+  --qlib_dir ~/.qlib/qlib_data/ib_data/5min \
+  --freq 5min \
+  --date_field_name timestamp \
+  --symbol_field_name symbol
 ```
 
 ## Architecture Overview
@@ -121,32 +213,65 @@ python -m pdb qlib/workflow/cli.py examples/benchmarks/LightGBM/workflow_config_
 
 ## Examples and Benchmarks
 
-The `examples/benchmarks/` directory contains implementations of various quantitative models:
-- **Tree-based**: LightGBM, XGBoost, CatBoost
-- **Neural Networks**: LSTM, GRU, Transformer variants, TabNet
-- **Specialized**: HIST, TRA, ADARNN, DoubleEnsemble
+### Available Models (25+ Benchmarks)
+
+**🌳 Tree-Based Models (Top Performers):**
+- **LightGBM**: 9.01% annual return, IC=0.0448
+- **XGBoost**: 7.80% annual return, IC=0.0498  
+- **CatBoost**: 7.65% annual return, IC=0.0481
+- **DoubleEnsemble**: 11.58% annual return, IC=0.0521 (Best overall)
+
+**🧠 Deep Learning Models:**
+- **LSTM/GRU**: Recurrent networks for sequential data
+- **Transformer**: Attention-based sequence modeling
+- **ALSTM**: Attention-enhanced LSTM
+- **TRA**: Temporal Routing Adaptor
+- **HIST**: Hierarchical Information Structure (9.87% annual return)
+- **TabNet**: Attention-based tabular learning
+
+**📈 Advanced Architectures:**
+- **GATs**: Graph Attention Networks  
+- **TCN**: Temporal Convolutional Networks
+- **ADARNN**: Adaptive RNN for regime changes
+- **TCTS**: Temporal Cross-sectional Attention
+- **Localformer**: Local attention for time series
+
+**🔢 Classical Baselines:**
+- **Linear**: Linear regression baseline
+- **MLP**: Multi-Layer Perceptron
 
 Each benchmark includes:
 - `workflow_config_*.yaml`: Complete pipeline configuration
-- `requirements.txt`: Model-specific dependencies
-- `README.md`: Model description and usage
+- `requirements.txt`: Model-specific dependencies  
+- `README.md`: Model description and performance metrics
 
 ## Data Organization
 
 **Local Data Structure**:
 ```
-~/.qlib/qlib_data/cn_data/   # Chinese market data
-~/.qlib/qlib_data/us_data/   # US market data (if available)
+~/.qlib/qlib_data/
+├── cn_data/          # Chinese A-shares data (CSI300/CSI500)
+├── us_data/          # US market data
+└── ib_data/          # Interactive Brokers data
+    ├── 5min/         # 5-minute bars
+    ├── 15min/        # 15-minute bars
+    ├── 30min/        # 30-minute bars
+    └── 1d/           # Daily bars
 ```
 
-**Feature Datasets**:
-- **Alpha158**: 158 technical indicators for daily frequency
-- **Alpha360**: 360 features including cross-sectional and time-series factors
+**Available Data:**
+- **Chinese Market**: CSI300, CSI500 stocks with Alpha158/Alpha360 features
+- **US Market**: Standard US equities data
+- **IB Data**: 16 liquid US ETFs/stocks (AAPL, AMD, SPY, QQQ, SOXL, etc.)
 
-**Segments**:
-- `train`: Training period (typically 2008-2014)
-- `valid`: Validation period (typically 2014-2016)
-- `test`: Test period (typically 2017-2020)
+**Feature Datasets**:
+- **Alpha158**: 158 hand-crafted technical indicators (better for tree models)
+- **Alpha360**: 360 raw price/volume features (better for deep learning)
+
+**Time Segments**:
+- `train`: Training period (typically 2008-2014 or 2019-2021 for IB data)
+- `valid`: Validation period (typically 2014-2016 or 2022 for IB data)  
+- `test`: Test period (typically 2017-2020 or 2023-2024 for IB data)
 
 ## Special Configuration Notes
 
