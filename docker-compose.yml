@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  qlib-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        - USER_ID=${USER_ID:-1000}
+        - GROUP_ID=${GROUP_ID:-1000}
+    container_name: qlib-dev
+    volumes:
+      # Mount source code for live development
+      - .:/workspace/qlib
+      # Mount existing Qlib data from host
+      - ~/.qlib:/root/.qlib
+      # Mount MLflow tracking directory
+      - ./mlruns:/workspace/qlib/mlruns
+      # Mount examples for easy access
+      - ./examples:/workspace/examples
+    ports:
+      # Jupyter notebook
+      - "8890:8888"
+      # MLflow UI
+      - "5002:5000"
+      # Flask server (if used)
+      - "5003:5001"
+    environment:
+      - PYTHONPATH=/workspace/qlib
+      - QLIB_DATA_PATH=/root/.qlib/qlib_data/cn_data
+      - JUPYTER_ENABLE_LAB=yes
+    working_dir: /workspace/qlib
+    command: >
+      bash -c "
+        echo 'Starting Qlib development environment...' &&
+        echo 'Installing qlib in development mode...' &&
+        make prerequisite &&
+        make dev &&
+        echo 'Starting Jupyter Lab on port 8888...' &&
+        jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password='' &
+        echo 'Starting MLflow UI on port 5000...' &&
+        mlflow ui --host 0.0.0.0 --port 5000 &
+        echo 'Development environment ready!' &&
+        echo 'Jupyter Lab: http://localhost:8890' &&
+        echo 'MLflow UI: http://localhost:5002' &&
+        echo 'Dropping into shell...' &&
+        /bin/bash
+      "
+    stdin_open: true
+    tty: true
+
+  qlib-jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: qlib-jupyter
+    volumes:
+      - .:/workspace/qlib
+      - ~/.qlib:/root/.qlib
+      - ./mlruns:/workspace/qlib/mlruns
+      - ./examples:/workspace/examples
+    ports:
+      - "8889:8888"
+    environment:
+      - PYTHONPATH=/workspace/qlib
+      - QLIB_DATA_PATH=/root/.qlib/qlib_data/cn_data
+      - JUPYTER_ENABLE_LAB=yes
+    working_dir: /workspace/qlib
+    command: >
+      bash -c "
+        make prerequisite &&
+        make dev &&
+        jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
+      "
+    profiles: ["jupyter-only"]
+
+  qlib-mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: qlib-mlflow
+    volumes:
+      - ./mlruns:/workspace/qlib/mlruns
+    ports:
+      - "5004:5000"
+    working_dir: /workspace/qlib
+    command: mlflow ui --host 0.0.0.0 --port 5000
+    profiles: ["mlflow-only"]
+
+  data-downloader:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: qlib-data-downloader
+    volumes:
+      - ~/.qlib:/root/.qlib
+      - .:/workspace/qlib
+    working_dir: /workspace/qlib
+    environment:
+      - PYTHONPATH=/workspace/qlib
+    command: >
+      bash -c "
+        echo 'Downloading Qlib data...' &&
+        make prerequisite &&
+        make install &&
+        python scripts/get_data.py qlib_data --target_dir ~/.qlib/qlib_data/cn_data --region cn &&
+        echo 'Data download completed!' &&
+        python scripts/check_data_health.py check_data --qlib_dir ~/.qlib/qlib_data/cn_data
+      "
+    profiles: ["data"]
+
+# No volumes needed - using host data directory

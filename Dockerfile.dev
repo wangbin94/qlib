@@ -1,0 +1,94 @@
+FROM continuumio/miniconda3:latest
+
+# Set build arguments for user/group IDs
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+
+WORKDIR /workspace
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y \
+        build-essential \
+        git \
+        vim \
+        nano \
+        curl \
+        wget \
+        htop \
+        tree \
+        sudo \
+        nfs-common && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create conda environment with Python 3.11
+RUN conda create --name qlib_env python=3.11 -y
+RUN echo "conda activate qlib_env" >> ~/.bashrc
+ENV PATH /opt/conda/envs/qlib_env/bin:$PATH
+
+# Upgrade pip
+RUN python -m pip install --upgrade pip
+
+# Install core scientific computing packages
+RUN python -m pip install \
+    numpy \
+    pandas \
+    scipy \
+    matplotlib \
+    seaborn \
+    plotly \
+    jupyter \
+    jupyterlab \
+    ipywidgets \
+    notebook
+
+# Install development and testing tools
+RUN python -m pip install \
+    pytest \
+    pytest-cov \
+    black \
+    pylint \
+    flake8 \
+    mypy \
+    pre-commit
+
+# Install ML and quant finance packages
+RUN python -m pip install \
+    scikit-learn \
+    lightgbm \
+    xgboost \
+    catboost \
+    statsmodels \
+    cvxpy \
+    mlflow
+
+# Install additional dependencies for qlib
+RUN python -m pip install \
+    cython \
+    packaging \
+    tables \
+    pybind11 \
+    "joblib<=1.4.2" \
+    importlib-metadata \
+    "cloudpickle<3"
+
+# Configure Jupyter Lab
+RUN jupyter lab --generate-config
+RUN echo "c.ServerApp.ip = '0.0.0.0'" >> ~/.jupyter/jupyter_lab_config.py
+RUN echo "c.ServerApp.allow_root = True" >> ~/.jupyter/jupyter_lab_config.py
+RUN echo "c.ServerApp.token = ''" >> ~/.jupyter/jupyter_lab_config.py
+RUN echo "c.ServerApp.password = ''" >> ~/.jupyter/jupyter_lab_config.py
+
+# Create workspace directories  
+RUN mkdir -p /workspace/qlib /workspace/examples /root/.qlib
+
+# Set environment variables
+ENV PYTHONPATH="/workspace/qlib:$PYTHONPATH"
+ENV JUPYTER_ENABLE_LAB=yes
+
+# Expose ports for Jupyter, MLflow, and Flask
+EXPOSE 8888 5000 5001
+
+# Default command
+CMD ["/bin/bash"]
