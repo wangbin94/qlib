@@ -282,3 +282,21 @@ Each benchmark includes:
 **Cython Extensions**: Performance-critical operations in `qlib/data/_libs/` are implemented in Cython and require compilation via `make prerequisite`.
 
 **Memory Management**: Built-in caching system with configurable cache levels for optimal memory usage during large-scale experiments.
+
+## Commit Message Guidelines
+
+When committing changes to this repository, use clear and concise commit messages:
+
+```bash
+# Good commit message format:
+git commit -m "feat: Add new trading strategy implementation
+
+- Implement momentum-based strategy with risk management
+- Add backtesting configuration and performance metrics
+- Update documentation with usage examples"
+
+# Avoid:
+- References to AI assistants or code generation tools
+- Overly verbose descriptions
+- Co-authored-by tags unless actually collaborating with humans
+```
